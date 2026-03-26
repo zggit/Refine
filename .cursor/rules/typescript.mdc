@@ -1,0 +1,31 @@
+---
+description: TypeScript rules for this Refine project (Next.js App Router)
+alwaysApply: true
+---
+
+# TypeScript Rules (this repo)
+
+## Strictness
+- Keep `strict: true` and do not introduce `any`.
+- If a value is unknown, use `unknown` and narrow (type guards / `in` checks / `typeof`).
+- Prefer `type` aliases for data models, `interface` for public component props when it helps readability.
+
+## Imports & path aliases
+- This repo uses `tsconfig.json` path mapping:
+  - `@*` → `./src/*` **(primary alias — use this)**
+    - e.g. `@providers/data-provider`, `@components/header`, `@utils/supabase/client`, `@contexts/color-mode`
+  - `@pages/*` → `./pages/*` — this alias exists in tsconfig but the `./pages/` directory does not exist in this App Router project. **Do not use `@pages/...`.**
+- Prefer `import type { ... } from ...` for type-only imports.
+
+## Naming & file conventions
+- **Components**: `PascalCase` (e.g. `BlogPostList`).
+- **Types**: `PascalCase` (`BlogPost`, `Category`, `HttpError`).
+- **Functions/vars**: `camelCase`.
+- **Files/folders**: prefer `kebab-case` under `src/app/**` for routes; use existing folder names as the source of truth.
+
+## Refine typing requirements
+- Refine hooks must be typed for record and error types when applicable.
+- In Ant Design tables, avoid `render={(value: any) => ...}`; prefer a typed record model and typed `render` signatures.
+
+## Error handling
+- If you catch errors, keep them typed: `catch (err: unknown)` and map to user-friendly messages.

@@ -1,0 +1,51 @@
+---
+description: Next.js App Router page patterns for Refine resources (Ant Design)
+globs: src/app/**/*.tsx
+---
+
+# Pages & Routing Rules (src/app/**)
+
+## Directory conventions (match this repo)
+For a resource `blog-posts` (resource name `blog_posts`), the route structure is:
+
+```
+src/app/blog-posts/
+├── page.tsx           # List (useTable)
+├── layout.tsx         # Optional resource layout wrapper
+├── create/page.tsx    # Create (useForm)
+├── edit/[id]/page.tsx # Edit (useForm — action inferred from route)
+└── show/[id]/page.tsx # Show (useShow)
+```
+
+Use the same pattern for new resources under `src/app/<resource>/...`.
+
+## Page patterns (preferred)
+- **List pages**: `useTable` + Ant Design `<Table>` inside `<List>`.
+- **Create/Edit pages**: `useForm` + Ant Design `<Form>` inside `<Create>`/`<Edit>`. For fields linked to another resource, use `useSelect` from `@refinedev/antd` to get the dropdown options.
+- **Show pages**: `useShow` inside `<Show>`. In Refine v5 `useShow` returns `{ result, query }` — `result` is the record data, `query` holds `isLoading` / `isError` state.
+- All pages must be `"use client"` components (the data provider is client-side only).
+
+## Data fetching
+- Avoid `useEffect` for CRUD data.
+- Prefer Refine hooks (which use `dataProvider`).
+
+## Related data — choose ONE strategy, do not mix
+
+**Option A — Supabase join via `meta.select` (preferred for read-only display):**
+```tsx
+const { tableProps } = useTable({
+  meta: { select: "*, categories(id,title)" },
+});
+// Access directly: record.categories.title — no extra hook needed
+```
+
+**Option B — `useMany` (use when you need the full resource record or cross-resource logic):**
+```tsx
+const { data: categories } = useMany({ resource: "categories", ids: [...] });
+```
+
+**Never use both for the same relation.** The existing `src/app/blog-posts/page.tsx` (list) and `src/app/blog-posts/show/[id]/page.tsx` (show) both use `meta.select` join alongside `useMany`/`useOne` for the same relation — this is a known redundancy in the legacy code, not a pattern to follow. When writing new pages, pick one strategy.
+
+## Auth pages
+- Auth routes live under `src/app/login`, `src/app/register`, `src/app/forgot-password`.
+- Don’t reimplement auth checks in pages; use `authProvider` and Refine routing/guards.

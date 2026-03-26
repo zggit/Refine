@@ -1,0 +1,51 @@
+---
+description: Refine v5 + Next.js App Router + Ant Design (Supabase) core rules
+alwaysApply: true
+---
+
+# Refine Core Rules (this repo)
+
+## Project wiring (source of truth)
+- Refine app shell + `resources` registration lives in `src/app/layout.tsx`.
+- Data provider is Supabase in `src/providers/data-provider/index.ts`.
+- Auth provider is Supabase in `src/providers/auth-provider/*`.
+
+## Package imports
+- Data hooks and types: `@refinedev/core`
+- Ant Design UI + table/form helpers: `@refinedev/antd`
+- Routing integration: `@refinedev/nextjs-router`
+- Supabase data provider: `@refinedev/supabase`
+- Do **not** import `react-query` / `@tanstack/react-query` directly for CRUD pages; use Refine hooks.
+
+## Hook selection (preferred)
+| Scenario | Use |
+|---|---|
+| List page with pagination/sort/filter | `useTable` from `@refinedev/antd` |
+| Read list without table UI | `useList<TData, HttpError>` from `@refinedev/core` |
+| Show page | `useShow<TData, HttpError>` from `@refinedev/core` |
+| Create / Edit form pages | `useForm` from `@refinedev/antd` — Refine v5 **infers `action` from the route automatically**, do not pass `action: "edit"` manually unless overriding |
+| Dropdown select for a related resource | `useSelect` from `@refinedev/antd` |
+| Create mutation | `useCreate<TData, HttpError>` from `@refinedev/core` |
+| Update mutation | `useUpdate<TData, HttpError>` from `@refinedev/core` |
+| Delete mutation | `useDelete<TData, HttpError>` from `@refinedev/core` |
+| Resolve related records | `useMany` / `useOne` from `@refinedev/core` |
+
+## Resource & typing rules (required)
+- Every resource has a TypeScript model type (e.g. `type BlogPost = { id: number; ... }`).
+- All Refine hooks must be typed (avoid implicit `any` in records/errors).
+- Resource names must match the underlying Supabase tables (e.g. `\"blog_posts\"`, `\"categories\"`).
+- Adding a new resource requires:
+  - A route folder under `src/app/<resource>/...`
+  - Registration in `resources={[...]}` in `src/app/layout.tsx`
+
+## Data access boundaries
+- Page/components should use Refine hooks (and therefore the configured `dataProvider`).
+- It is OK to call Supabase client **directly** only inside:
+  - `src/providers/data-provider/**`
+  - `src/providers/auth-provider/**`
+  - `src/utils/supabase/**`
+
+## Anti-patterns (avoid)
+- Do not fetch CRUD data with `useEffect` + `fetch` + `useState` in pages.
+- Do not hardcode backend URLs in pages (Supabase is already configured).
+- Do not modify `node_modules` to change UI—override via app code instead.

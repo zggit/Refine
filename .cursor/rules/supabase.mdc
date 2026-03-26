@@ -1,0 +1,39 @@
+---
+description: Supabase usage rules (clients, providers, middleware, and boundaries)
+globs: src/providers/**,src/utils/supabase/**,src/middleware.ts
+---
+
+# Supabase Rules (this repo)
+
+## Where Supabase is configured
+- Browser client: `src/utils/supabase/client.ts` (`createBrowserClient`)
+- Server client: `src/utils/supabase/server.ts`
+- Constants: `src/utils/supabase/constants.ts` (**do not add hardcoded secrets here — see security-secrets rule**)
+- Data provider wiring: `src/providers/data-provider/index.ts` (uses `@refinedev/supabase`)
+- Auth provider wiring:
+  - client: `src/providers/auth-provider/auth-provider.client.ts`
+  - server: `src/providers/auth-provider/auth-provider.server.ts`
+
+## Client vs server boundaries
+- **Client Components** (`"use client"`) must use the browser client (`supabaseBrowserClient`).
+- **Server Components / Route handlers / middleware** must use the server client utilities.
+- Never import a server-only module into a client component.
+
+## Data access rules
+- App CRUD should go through Refine hooks + `dataProvider` (preferred).
+- Direct Supabase calls are allowed only inside the provider layer (`src/providers/**`) and Supabase utils (`src/utils/supabase/**`).
+- **The data provider (`src/providers/data-provider/index.ts`) is marked `"use client"` and uses `supabaseBrowserClient` — all Refine CRUD operations run client-side only.** Do not expect Refine hooks to work in Server Components. If you need server-side data fetching, use `createSupabaseServerClient()` from `src/utils/supabase/server.ts` directly inside a Server Component or Route Handler.
+
+## Query shape
+- If you need joins/selects, prefer passing `meta.select` through Refine hooks (example: `meta: { select: "*, categories(id,title)" }`).
+- Do not pair `meta.select` joins with `useMany` for the same relation — pick one. See `pages.mdc` for details.
+
+## Middleware (`src/middleware.ts`)
+- `src/middleware.ts` is the **first line of auth defence** — it refreshes the Supabase session cookie on every request using `src/utils/supabase/middleware.ts`.
+- Do not remove or bypass the `updateSession` call in middleware.
+- Do not add application logic (redirects, data fetching) directly to middleware beyond session refresh — use Refine `authProvider.check` for route-level guards.
+- The middleware `matcher` config controls which routes it runs on; update it carefully if adding new public routes.
+
+## Auth rules
+- Auth-related redirects and checks should use Refine `authProvider` contract (`login/logout/check/getIdentity/getPermissions`).
+- Don't duplicate auth logic in page components.

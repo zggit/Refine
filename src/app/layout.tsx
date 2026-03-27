@@ -76,6 +76,14 @@ export default async function RootLayout({
                           label: "eBay Orders",
                         },
                       },
+                      {
+                        name: "ebay_reconcile",
+                        list: "/ebay-orders/reconcile",
+                        meta: {
+                          label: "订单核对",
+                          parent: "ebay_orders",
+                        },
+                      },
                     ]}
                     options={{
                       syncWithLocation: true,

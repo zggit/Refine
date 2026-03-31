@@ -4,9 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const API_BASE = "https://open.tongtool.com";
 const ACCESS_KEY = process.env.TONGTOOL_ACCESS_KEY!;
 const SECRET_KEY = process.env.TONGTOOL_SECRET_KEY!;
-
-// Cached in memory — fetched once per server process, not on every request
-let cachedMerchantId: string | null = null;
+const MERCHANT_ID = process.env.TONGTOOL_MERCHANT_ID!;
 
 export interface TongtoolOrder {
   orderIdKey: string | null;        // TongtoolERP internal ID (for cancel operations)
@@ -50,23 +48,6 @@ async function getAppToken(): Promise<string> {
 }
 
 
-async function getMerchantId(appToken: string): Promise<string> {
-  const timestamp = Date.now().toString();
-  const sign = buildSign(appToken, timestamp);
-  const url = `${API_BASE}/open-platform-service/partnerOpenInfo/getAppBuyerList?app_token=${appToken}&timestamp=${timestamp}&sign=${sign}`;
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`getAppBuyerList failed: HTTP ${res.status}`);
-  const data = await res.json() as {
-    success: boolean; code: number; message: string;
-    datas: Array<{ partnerOpenId: string }> | null;
-  };
-  if (!data.success || !data.datas?.length)
-    throw new Error(`getAppBuyerList error (code ${data.code}): ${data.message}`);
-  return data.datas[0].partnerOpenId;
-}
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 19).replace("T", " ");
@@ -83,12 +64,8 @@ export async function GET(req: NextRequest) {
 
   const payDateFrom = searchParams.get("payDateFrom") ?? formatDate(defaultFrom);
   const payDateTo = searchParams.get("payDateTo") ?? formatDate(defaultTo);
-  // waitPacking = 等待配货, waitPrinting = 等待打印
-  // When no status specified, fetch both and merge
-  const orderStatusParam = searchParams.get("orderStatus");
-  const statusesToFetch = orderStatusParam
-    ? [orderStatusParam]
-    : ["waitPacking", "waitPrinting"];
+  const orderStatusParam = searchParams.get("orderStatus") ?? "waitPacking";
+  const statusesToFetch = [orderStatusParam];
 
   async function fetchAllForStatus(token: string, merchantId: string, status: string): Promise<TongtoolOrder[]> {
     const orders: TongtoolOrder[] = [];
@@ -136,10 +113,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const token = await getAppToken();
-    if (!cachedMerchantId) {
-      cachedMerchantId = await getMerchantId(token);
-    }
-    const merchantId = cachedMerchantId;
+    const merchantId = MERCHANT_ID;
 
     const allOrders: TongtoolOrder[] = [];
     for (const status of statusesToFetch) {

@@ -16,6 +16,7 @@ import {
 import { InboxOutlined, SyncOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import type { TongtoolOrder } from "@/app/api/tongtool/orders/route";
+import type { EbayOrder } from "@/app/api/ebay/orders/route";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -92,10 +93,13 @@ function parseErpPaste(text: string): ErpOrder[] {
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function ReconcilePage() {
-  // eBay CSV
+  // eBay — shared set + source
   const [ebaySet, setEbaySet] = useState<Set<string> | null>(null);
   const [ebayCount, setEbayCount] = useState(0);
+  const [ebaySource, setEbaySource] = useState<"csv" | "api" | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
+  const [ebayApiLoading, setEbayApiLoading] = useState(false);
+  const [ebayApiError, setEbayApiError] = useState<string | null>(null);
 
   // TongtoolERP — paste
   const [erpPaste, setErpPaste] = useState("");
@@ -118,7 +122,9 @@ export default function ReconcilePage() {
         const parsed = parseEbayCsv(text);
         setEbaySet(parsed);
         setEbayCount(parsed.size);
+        setEbaySource("csv");
         setCsvError(null);
+        setEbayApiError(null);
         setResult(null);
       } catch (err: unknown) {
         setCsvError(err instanceof Error ? err.message : "CSV 解析失败");
@@ -126,6 +132,27 @@ export default function ReconcilePage() {
     };
     reader.readAsText(file, "utf-8");
     return false;
+  };
+
+  // ── eBay API fetch ──
+  const handleEbayApiFetch = async () => {
+    setEbayApiLoading(true);
+    setEbayApiError(null);
+    setCsvError(null);
+    setResult(null);
+    try {
+      const res = await fetch("/api/ebay/orders");
+      const data = await res.json() as { success: boolean; orders: EbayOrder[]; error?: string };
+      if (!data.success) throw new Error(data.error ?? "eBay API 返回失败");
+      const set = new Set<string>(data.orders.map((o) => o.orderId.toUpperCase()));
+      setEbaySet(set);
+      setEbayCount(set.size);
+      setEbaySource("api");
+    } catch (err: unknown) {
+      setEbayApiError(err instanceof Error ? err.message : "拉取失败");
+    } finally {
+      setEbayApiLoading(false);
+    }
   };
 
   // ── Paste input ──
@@ -191,9 +218,29 @@ export default function ReconcilePage() {
         {/* STEP 1 */}
         <Col xs={24} lg={12}>
           <Card
-            title="STEP 1 — eBay 待发货 CSV"
-            extra={ebaySet && <Tag color="green">{ebayCount} 个订单</Tag>}
+            title="STEP 1 — eBay 待发货订单"
+            extra={ebaySet && (
+              <Tag color="green">
+                {ebaySource === "api" ? "API · " : "CSV · "}{ebayCount} 个订单
+              </Tag>
+            )}
           >
+            {/* eBay API button */}
+            <Button
+              icon={<SyncOutlined />}
+              loading={ebayApiLoading}
+              onClick={handleEbayApiFetch}
+              type={ebaySource === "api" ? "primary" : "default"}
+              block
+            >
+              从 eBay API 拉取待发货订单
+            </Button>
+            {ebayApiError && (
+              <Alert type="error" message={ebayApiError} showIcon style={{ marginTop: 8 }} />
+            )}
+
+            <Divider plain style={{ margin: "12px 0", color: "#aaa" }}>或上传 CSV</Divider>
+
             <Dragger
               accept=".csv"
               beforeUpload={handleCsvFile}
@@ -208,7 +255,14 @@ export default function ReconcilePage() {
             </Dragger>
             {csvError && <Alert type="error" message={csvError} showIcon style={{ marginTop: 8 }} />}
             {ebaySet && (
-              <Alert type="success" message={`解析成功：${ebayCount} 个待发货订单`} showIcon style={{ marginTop: 8 }} />
+              <Alert
+                type="success"
+                message={ebaySource === "api"
+                  ? `API 拉取成功：${ebayCount} 个待发货订单`
+                  : `CSV 解析成功：${ebayCount} 个待发货订单`}
+                showIcon
+                style={{ marginTop: 8 }}
+              />
             )}
           </Card>
         </Col>
@@ -263,7 +317,7 @@ export default function ReconcilePage() {
               <Alert type="success" message={`识别到 ${erpOrders.length} 个 TongtoolERP 订单`} showIcon style={{ marginTop: 8 }} />
             )}
             {erpSource === "api" && erpOrders.length > 0 && (
-              <Alert type="success" message={`API 拉取成功：${erpOrders.length} 个待发货订单（waitPacking + waitPrinting）`} showIcon style={{ marginTop: 8 }} />
+              <Alert type="success" message={`API 拉取成功：${erpOrders.length} 个待发货订单（waitPacking）`} showIcon style={{ marginTop: 8 }} />
             )}
           </Card>
         </Col>

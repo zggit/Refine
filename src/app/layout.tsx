@@ -84,6 +84,14 @@ export default async function RootLayout({
                           parent: "ebay_orders",
                         },
                       },
+                      {
+                        name: "ebay_inventory",
+                        list: "/ebay-orders/inventory",
+                        meta: {
+                          label: "Inventory",
+                          parent: "ebay_orders",
+                        },
+                      },
                     ]}
                     options={{
                       syncWithLocation: true,

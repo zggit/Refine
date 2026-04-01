@@ -4,7 +4,12 @@ const CLIENT_ID = process.env.EBAY_CLIENT_ID!;
 const CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET!;
 const RUNAME = process.env.EBAY_RUNAME ?? "Edward_Zhang-EdwardZh-Shippi-jfgya";
 const TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token";
-const SCOPE = "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly";
+const SCOPE = [
+  "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly",
+  "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
+  "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly",
+  "https://api.ebay.com/oauth/api_scope/sell.inventory",
+].join(" ");
 
 // Step 1: GET /api/ebay/auth  → redirects to eBay consent page
 export async function GET() {

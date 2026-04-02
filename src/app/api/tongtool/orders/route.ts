@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
           payDateTo,
           pageNo: String(pageNo),
           pageSize: String(pageSize),
+          isSuspended: "0",
         }),
         cache: "no-store",
       });

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getAccessToken, BASE } from "../token";
+import { NextRequest, NextResponse } from "next/server";
+import { getAccessToken, BASE, STORE_IDS, type StoreId } from "../token";
 
 const ORDERS_URL = `${BASE}/sell/fulfillment/v1/order`;
 
@@ -17,9 +17,13 @@ function normalizeOrderId(orderId: string): string {
   return orderId.trim().toUpperCase();
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const accessToken = await getAccessToken();
+    const store = (req.nextUrl.searchParams.get("store") ?? "AV") as StoreId;
+    if (!STORE_IDS.includes(store)) {
+      return NextResponse.json({ success: false, error: `Invalid store: ${store}` }, { status: 400 });
+    }
+    const accessToken = await getAccessToken(store);
 
     const allOrders: EbayOrder[] = [];
     let offset = 0;

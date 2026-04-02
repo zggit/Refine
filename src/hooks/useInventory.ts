@@ -30,7 +30,7 @@ function mapRow(row: Record<string, unknown>, weightOz: number | null): ListingW
   };
 }
 
-export function useInventory() {
+export function useInventory(store: string) {
   const [state, setState] = useState<InventoryState>({
     listings: [],
     loading: false,
@@ -51,11 +51,13 @@ export function useInventory() {
         supabaseBrowserClient
           .from("ebay_listings")
           .select("*")
+          .eq("store_id", store)
           .order("updated_at", { ascending: false })
           .limit(2000),
         supabaseBrowserClient
           .from("ebay_item_weights")
           .select("item_id, weight_oz")
+          .eq("store_id", store)
           .limit(2000),
       ]);
 
@@ -105,13 +107,13 @@ export function useInventory() {
         error: `加载失败: ${err instanceof Error ? err.message : "unknown error"}`,
       }));
     }
-  }, []);
+  }, [store]);
 
   // Sync from eBay via API route, then re-read Supabase
   const syncFromEbay = useCallback(async () => {
     setState((s) => ({ ...s, syncing: true, error: null }));
     try {
-      const res = await fetch("/api/ebay/inventory/sync", { method: "POST" });
+      const res = await fetch(`/api/ebay/inventory/sync?store=${store}`, { method: "POST" });
       const data = (await res.json()) as {
         success: boolean;
         count?: number;
@@ -129,7 +131,7 @@ export function useInventory() {
         error: `同步失败: ${err instanceof Error ? err.message : "network error"}`,
       }));
     }
-  }, [loadFromSupabase]);
+  }, [store, loadFromSupabase]);
 
   // Fetch weights in batches via API route, merge into local state
   const fetchWeights = useCallback(
@@ -151,7 +153,7 @@ export function useInventory() {
         const ids = batch.map((b) => b.itemId).join(",");
 
         try {
-          const res = await fetch(`/api/ebay/inventory/weight?ids=${ids}`);
+          const res = await fetch(`/api/ebay/inventory/weight?ids=${ids}&store=${store}`);
           const data = (await res.json()) as {
             success: boolean;
             weights: Record<string, number>;
@@ -167,7 +169,7 @@ export function useInventory() {
             }));
           }
         } catch {
-          // Silently continue on weight fetch errors — same as current behavior
+          // Silently continue on weight fetch errors
         }
 
         setState((s) => ({
@@ -181,15 +183,16 @@ export function useInventory() {
 
       setState((s) => ({ ...s, weightLoading: false }));
     },
-    []
+    [store]
   );
 
   const stopWeights = useCallback(() => {
     abortRef.current = true;
   }, []);
 
-  // Load on mount
+  // Reload when store changes
   useEffect(() => {
+    hadDataRef.current = false;
     loadFromSupabase();
   }, [loadFromSupabase]);
 

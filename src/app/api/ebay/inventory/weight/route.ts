@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
-import { getAccessToken } from "../../token";
+import { getAccessToken, STORE_IDS, type StoreId } from "../../token";
 import { tradingApiCall, xmlText, toOz } from "../../trading";
 import { supabaseServiceClient } from "@/utils/supabase/service";
 
-// GET /api/ebay/inventory/weight?ids=123,456
-// Fetches from eBay Trading API, saves to Supabase, returns weights in oz
+// GET /api/ebay/inventory/weight?ids=123,456&store=AV
 export async function GET(req: Request) {
   try {
-    const accessToken = await getAccessToken();
-    const supabase = supabaseServiceClient;
     const url = new URL(req.url);
+    const store = (url.searchParams.get("store") ?? "AV") as StoreId;
+    if (!STORE_IDS.includes(store)) {
+      return NextResponse.json({ success: false, error: `Invalid store: ${store}` }, { status: 400 });
+    }
+
+    const accessToken = await getAccessToken(store);
+    const supabase = supabaseServiceClient;
     const idsParam = url.searchParams.get("ids") ?? "";
     const ids = idsParam.split(",").filter(Boolean).slice(0, 50);
 
@@ -17,10 +21,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, weights: {} });
     }
 
-    // Check Supabase cache first
+    // Check Supabase cache first (filtered by store)
     const { data: cached } = await supabase
       .from("ebay_item_weights")
       .select("item_id, weight_oz")
+      .eq("store_id", store)
       .in("item_id", ids);
 
     const cachedMap = new Map<string, number>();
@@ -50,13 +55,14 @@ export async function GET(req: Request) {
       // Save to Supabase
       const rows = results.map((r) => ({
         item_id: r.id,
+        store_id: store,
         weight_oz: r.oz,
         updated_at: new Date().toISOString(),
       }));
       if (rows.length > 0) {
         const { error: upsertErr } = await supabase
           .from("ebay_item_weights")
-          .upsert(rows, { onConflict: "item_id" });
+          .upsert(rows, { onConflict: "item_id,store_id" });
         if (upsertErr) {
           console.error("Weight upsert error:", upsertErr);
         }

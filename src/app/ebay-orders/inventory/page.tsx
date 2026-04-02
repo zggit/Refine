@@ -6,6 +6,7 @@ import {
   Image,
   Input,
   Progress,
+  Radio,
   Table,
   Tag,
   Typography,
@@ -18,7 +19,13 @@ import type { ListingWithWeight } from "@/types/ebay";
 
 const { Title, Text } = Typography;
 
+const STORES = [
+  { value: "AV", label: "AV" },
+  { value: "ST", label: "ST" },
+];
+
 export default function InventoryPage() {
+  const [store, setStore] = useState("AV");
   const {
     listings,
     loading,
@@ -30,7 +37,7 @@ export default function InventoryPage() {
     loadFromSupabase,
     syncFromEbay,
     fetchWeights,
-  } = useInventory();
+  } = useInventory(store);
 
   const [search, setSearch] = useState("");
 
@@ -131,9 +138,19 @@ export default function InventoryPage() {
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <Title level={4} style={{ margin: 0 }}>
-            eBay Inventory
-          </Title>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Title level={4} style={{ margin: 0 }}>
+              eBay Inventory
+            </Title>
+            <Radio.Group
+              value={store}
+              onChange={(e) => setStore(e.target.value)}
+              optionType="button"
+              buttonStyle="solid"
+              size="small"
+              options={STORES}
+            />
+          </div>
           <Text type="secondary">
             {listings.length > 0 ? `${listings.length} listings` : ""}
             {cachedCount > 0 ? ` · ${cachedCount} weights` : ""}
@@ -183,7 +200,7 @@ export default function InventoryPage() {
       {!loading && !error && listings.length === 0 && (
         <Alert
           type="info"
-          message="No cached data yet. Click 'Sync from eBay' to populate."
+          message={`No cached data for ${store} yet. Click 'Sync from eBay' to populate.`}
           showIcon
           style={{ marginBottom: 16 }}
         />

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getAccessToken } from "../../token";
+import { NextRequest, NextResponse } from "next/server";
+import { getAccessToken, STORE_IDS, type StoreId } from "../../token";
 import { tradingApiCall, xmlText } from "../../trading";
 import { supabaseServiceClient } from "@/utils/supabase/service";
 import type { EbayListing } from "@/types/ebay";
@@ -33,13 +33,16 @@ function parseItems(xml: string): EbayListing[] {
   return items;
 }
 
-// POST /api/ebay/inventory/sync
-// Fetches all active listings from eBay, upserts to Supabase.
-// Client re-reads Supabase directly after sync completes.
-export async function POST() {
+// POST /api/ebay/inventory/sync?store=AV
+export async function POST(req: NextRequest) {
   try {
+    const store = (req.nextUrl.searchParams.get("store") ?? "AV") as StoreId;
+    if (!STORE_IDS.includes(store)) {
+      return NextResponse.json({ success: false, error: `Invalid store: ${store}` }, { status: 400 });
+    }
+
     const supabase = supabaseServiceClient;
-    const accessToken = await getAccessToken();
+    const accessToken = await getAccessToken(store);
     const allItems: EbayListing[] = [];
     let page = 1;
     let totalPages = 1;
@@ -69,7 +72,7 @@ export async function POST() {
       page++;
     }
 
-    // Deduplicate by itemId (eBay can return duplicates across pages)
+    // Deduplicate by itemId
     const seen = new Set<string>();
     const uniqueItems = allItems.filter((item) => {
       if (seen.has(item.itemId)) return false;
@@ -79,6 +82,7 @@ export async function POST() {
 
     const rows = uniqueItems.map((item) => ({
       item_id: item.itemId,
+      store_id: store,
       title: item.title,
       sku: item.sku,
       price: item.price,
@@ -94,7 +98,7 @@ export async function POST() {
     for (let i = 0; i < rows.length; i += 200) {
       const { error: upsertErr } = await supabase
         .from("ebay_listings")
-        .upsert(rows.slice(i, i + 200), { onConflict: "item_id" });
+        .upsert(rows.slice(i, i + 200), { onConflict: "item_id,store_id" });
       if (upsertErr) {
         console.error("Upsert error:", upsertErr);
         throw new Error(`Failed to save listings: ${upsertErr.message}`);
@@ -104,6 +108,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       count: uniqueItems.length,
+      store,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

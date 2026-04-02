@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getAccessToken } from "../../token";
 import { tradingApiCall, xmlText, toOz } from "../../trading";
-import { createSupabaseServerClient } from "@/utils/supabase/server";
+import { supabaseServiceClient } from "@/utils/supabase/service";
 
 // GET /api/ebay/inventory/weight?ids=123,456
 // Fetches from eBay Trading API, saves to Supabase, returns weights in oz
 export async function GET(req: Request) {
   try {
     const accessToken = await getAccessToken();
-    const supabase = await createSupabaseServerClient();
+    const supabase = supabaseServiceClient;
     const url = new URL(req.url);
     const idsParam = url.searchParams.get("ids") ?? "";
     const ids = idsParam.split(",").filter(Boolean).slice(0, 50);

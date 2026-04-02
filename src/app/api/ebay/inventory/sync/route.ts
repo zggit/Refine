@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAccessToken } from "../token";
-import { tradingApiCall, xmlText } from "../trading";
-import { createSupabaseServerClient } from "@/utils/supabase/server";
-
-export interface EbayListing {
-  itemId: string;
-  title: string;
-  sku: string | null;
-  price: number | null;
-  currency: string | null;
-  quantity: number | null;
-  quantityAvailable: number | null;
-  quantitySold: number | null;
-  imageUrl: string | null;
-}
+import { getAccessToken } from "../../token";
+import { tradingApiCall, xmlText } from "../../trading";
+import { supabaseServiceClient } from "@/utils/supabase/service";
+import type { EbayListing } from "@/types/ebay";
 
 function parseItems(xml: string): EbayListing[] {
   const items: EbayListing[] = [];
@@ -44,51 +33,12 @@ function parseItems(xml: string): EbayListing[] {
   return items;
 }
 
-// GET /api/ebay/inventory
-// ?source=cache  → load from Supabase (fast, default)
-// ?source=ebay   → fetch from eBay, update Supabase, return fresh data
-export async function GET(req: Request) {
+// POST /api/ebay/inventory/sync
+// Fetches all active listings from eBay, upserts to Supabase.
+// Client re-reads Supabase directly after sync completes.
+export async function POST() {
   try {
-    const url = new URL(req.url);
-    const source = url.searchParams.get("source") ?? "cache";
-    const supabase = await createSupabaseServerClient();
-
-    if (source === "cache") {
-      // Load listings and weights separately
-      const [listingsRes, weightsRes] = await Promise.all([
-        supabase.from("ebay_listings").select("*").order("updated_at", { ascending: false }).limit(2000),
-        supabase.from("ebay_item_weights").select("item_id, weight_oz").limit(2000),
-      ]);
-
-      if (listingsRes.error) throw new Error(listingsRes.error.message);
-
-      const weightMap = new Map<string, number>();
-      for (const w of weightsRes.data ?? []) {
-        weightMap.set(w.item_id, w.weight_oz);
-      }
-
-      const listings: (EbayListing & { weightOz: number | null })[] = (listingsRes.data ?? []).map((row: Record<string, unknown>) => ({
-        itemId: row.item_id as string,
-        title: row.title as string,
-        sku: row.sku as string | null,
-        price: row.price != null ? Number(row.price) : null,
-        currency: (row.currency as string) ?? "USD",
-        quantity: row.quantity as number | null,
-        quantityAvailable: row.quantity_available as number | null,
-        quantitySold: row.quantity_sold as number | null,
-        imageUrl: row.image_url as string | null,
-        weightOz: weightMap.get(row.item_id as string) ?? null,
-      }));
-
-      return NextResponse.json({
-        success: true,
-        listings,
-        total: listings.length,
-        source: "cache",
-      });
-    }
-
-    // source=ebay — fetch from eBay Trading API
+    const supabase = supabaseServiceClient;
     const accessToken = await getAccessToken();
     const allItems: EbayListing[] = [];
     let page = 1;
@@ -151,26 +101,9 @@ export async function GET(req: Request) {
       }
     }
 
-    // Also load weights to return complete data
-    const { data: weights } = await supabase
-      .from("ebay_item_weights")
-      .select("item_id, weight_oz");
-
-    const weightMap = new Map<string, number>();
-    for (const w of weights ?? []) {
-      weightMap.set(w.item_id, w.weight_oz);
-    }
-
-    const listings = uniqueItems.map((item) => ({
-      ...item,
-      weightOz: weightMap.get(item.itemId) ?? null,
-    }));
-
     return NextResponse.json({
       success: true,
-      listings,
-      total: uniqueItems.length,
-      source: "ebay",
+      count: uniqueItems.length,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

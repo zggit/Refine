@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Alert,
   Button,
@@ -13,115 +12,27 @@ import {
   Space,
 } from "antd";
 import { ReloadOutlined, LoadingOutlined, SyncOutlined } from "@ant-design/icons";
-import type { EbayListing } from "@/app/api/ebay/inventory/route";
+import { useState } from "react";
+import { useInventory } from "@/hooks/useInventory";
+import type { ListingWithWeight } from "@/types/ebay";
 
 const { Title, Text } = Typography;
 
-type ListingWithWeight = EbayListing & { weightOz: number | null };
-
 export default function InventoryPage() {
-  const [listings, setListings] = useState<ListingWithWeight[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    listings,
+    loading,
+    syncing,
+    error,
+    lastSource,
+    weightLoading,
+    weightProgress,
+    loadFromSupabase,
+    syncFromEbay,
+    fetchWeights,
+  } = useInventory();
+
   const [search, setSearch] = useState("");
-  const [lastSource, setLastSource] = useState<string | null>(null);
-
-  // Weight loading state
-  const [weightLoading, setWeightLoading] = useState(false);
-  const [weightProgress, setWeightProgress] = useState({ done: 0, total: 0 });
-  const abortRef = useRef(false);
-
-  // Load from Supabase cache (fast)
-  const loadFromCache = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/ebay/inventory?source=cache");
-      const data = await res.json() as {
-        success: boolean;
-        listings: ListingWithWeight[];
-        total: number;
-        source: string;
-        error?: string;
-      };
-      if (!data.success) throw new Error(data.error ?? "Failed to load");
-      setListings(data.listings);
-      setLastSource(data.source);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "加载失败");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Sync from eBay (slow, updates Supabase)
-  const syncFromEbay = useCallback(async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/ebay/inventory?source=ebay");
-      const data = await res.json() as {
-        success: boolean;
-        listings: ListingWithWeight[];
-        total: number;
-        source: string;
-        error?: string;
-      };
-      if (!data.success) throw new Error(data.error ?? "Sync failed");
-      setListings(data.listings);
-      setLastSource(data.source);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "同步失败");
-    } finally {
-      setSyncing(false);
-    }
-  }, []);
-
-  // Fetch weights from eBay in background, batch by batch, save to Supabase
-  const fetchWeights = useCallback(async (items: ListingWithWeight[]) => {
-    const needWeight = items.filter((i) => i.weightOz === null && i.itemId);
-    if (needWeight.length === 0) return;
-
-    abortRef.current = false;
-    setWeightLoading(true);
-    setWeightProgress({ done: 0, total: needWeight.length });
-
-    const batchSize = 50;
-    for (let i = 0; i < needWeight.length; i += batchSize) {
-      if (abortRef.current) break;
-      const batch = needWeight.slice(i, i + batchSize);
-      const ids = batch.map((b) => b.itemId).join(",");
-
-      try {
-        const res = await fetch(`/api/ebay/inventory/weight?ids=${ids}`);
-        const data = await res.json() as {
-          success: boolean;
-          weights: Record<string, number>;
-        };
-
-        if (data.success) {
-          setListings((prev) =>
-            prev.map((item) => {
-              const oz = data.weights[item.itemId];
-              if (oz !== undefined) return { ...item, weightOz: oz };
-              return item;
-            })
-          );
-        }
-      } catch {
-        // Silently continue on weight fetch errors
-      }
-
-      setWeightProgress({ done: Math.min(i + batchSize, needWeight.length), total: needWeight.length });
-    }
-
-    setWeightLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadFromCache();
-  }, [loadFromCache]);
 
   // Filter listings by search
   const filtered = listings.filter((item) => {
@@ -259,7 +170,7 @@ export default function InventoryPage() {
           </Button>
           <Button
             icon={<ReloadOutlined />}
-            onClick={loadFromCache}
+            onClick={loadFromSupabase}
             loading={loading}
           >
             Refresh
@@ -268,6 +179,15 @@ export default function InventoryPage() {
       </div>
 
       {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
+
+      {!loading && !error && listings.length === 0 && (
+        <Alert
+          type="info"
+          message="No cached data yet. Click 'Sync from eBay' to populate."
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       <Input.Search
         placeholder="Search by title, SKU, or item ID..."

@@ -88,25 +88,15 @@ export const authProviderClient: AuthProvider = {
     };
   },
   check: async () => {
-    const { data, error } = await supabaseBrowserClient.auth.getUser();
-    const { user } = data;
-
-    if (error) {
-      return {
-        authenticated: false,
-        redirectTo: "/login",
-        logout: true,
-      };
-    }
+    const { data: { user } } = await supabaseBrowserClient.auth.getUser();
 
     if (user) {
-      return {
-        authenticated: true,
-      };
+      return { authenticated: true };
     }
 
     return {
       authenticated: false,
+      logout: true,
       redirectTo: "/login",
     };
   },

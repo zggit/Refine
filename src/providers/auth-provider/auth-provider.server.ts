@@ -3,22 +3,11 @@ import { createSupabaseServerClient } from "@utils/supabase/server";
 
 export const authProviderServer: Pick<AuthProvider, "check"> = {
   check: async () => {
-    const client = await createSupabaseServerClient();
-    const { data, error } = await client.auth.getUser();
-    const { user } = data;
-
-    if (error) {
-      return {
-        authenticated: false,
-        logout: true,
-        redirectTo: "/login",
-      };
-    }
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-      return {
-        authenticated: true,
-      };
+      return { authenticated: true };
     }
 
     return {

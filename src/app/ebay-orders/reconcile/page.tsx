@@ -134,17 +134,24 @@ export default function ReconcilePage() {
     return false;
   };
 
-  // ── eBay API fetch ──
+  // ── eBay API fetch (all stores) ──
   const handleEbayApiFetch = async () => {
     setEbayApiLoading(true);
     setEbayApiError(null);
     setCsvError(null);
     setResult(null);
     try {
-      const res = await fetch("/api/ebay/orders");
-      const data = await res.json() as { success: boolean; orders: EbayOrder[]; error?: string };
-      if (!data.success) throw new Error(data.error ?? "eBay API 返回失败");
-      const set = new Set<string>(data.orders.map((o) => o.orderId.toUpperCase()));
+      const stores = ["AV", "ST"];
+      const results = await Promise.all(
+        stores.map(async (store) => {
+          const res = await fetch(`/api/ebay/orders?store=${store}`);
+          const data = await res.json() as { success: boolean; orders: EbayOrder[]; error?: string };
+          if (!data.success) throw new Error(`${store}: ${data.error ?? "eBay API 返回失败"}`);
+          return data.orders;
+        })
+      );
+      const allOrders = results.flat();
+      const set = new Set<string>(allOrders.map((o) => o.orderId.toUpperCase()));
       setEbaySet(set);
       setEbayCount(set.size);
       setEbaySource("api");

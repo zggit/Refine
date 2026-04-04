@@ -1,0 +1,10 @@
+National Zone Charts Matrix Changes                                                                                                                                                                     
+Effective:     04/01/2024                                                                                                                                                                               
+Mandatory:     05/01/2024                                                                                                                                                                               
+Last Updated:  04/01/2024                                                                                                                                                                               
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+The United States Postal Service has updated the National Zone Charts Matrix file.                                                                                                                      
+                                                                                                                                                                                                        
+These revisions will be incorporated into the lookup tool available online at                                                                                                                           
+https://postcalc.usps.com/DomesticZoneChart.                                                                                                                                                            

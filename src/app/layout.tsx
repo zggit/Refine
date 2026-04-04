@@ -71,6 +71,20 @@ export default async function RootLayout({
                           parent: "ebay_orders",
                         },
                       },
+                      {
+                        name: "logistics",
+                        meta: {
+                          label: "物流",
+                        },
+                      },
+                      {
+                        name: "logistics_zone",
+                        list: "/logistics/usps-zone",
+                        meta: {
+                          label: "USPS Zone Chart",
+                          parent: "logistics",
+                        },
+                      },
                     ]}
                     options={{
                       syncWithLocation: true,

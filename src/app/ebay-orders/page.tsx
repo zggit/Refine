@@ -1,66 +1,137 @@
 "use client";
 
-import {
-  DateField,
-  DeleteButton,
-  EditButton,
-  List,
-  ShowButton,
-  useTable,
-} from "@refinedev/antd";
-import type { BaseRecord } from "@refinedev/core";
-import { Space, Table, Tag } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button, Table, Tag, Typography } from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
+import type { EbayOrder } from "@/app/api/ebay/orders/route";
 
-type EbayOrder = {
-  id: number;
-  order_id: string;
-  buyer_username: string;
-  item_title: string;
-  status: string;
-  total_price: number;
-  created_at: string;
-};
+const { Text } = Typography;
+
+const STORES = ["AV", "ST"] as const;
+const PAGE_SIZE = 100;
 
 export default function EbayOrderList() {
-  const { tableProps } = useTable<EbayOrder>({
-    syncWithLocation: true,
-  });
+  const [orders, setOrders] = useState<EbayOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const didFetch = useRef(false);
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(
+        STORES.map(async (store) => {
+          const res = await fetch(`/api/ebay/orders?store=${store}`);
+          const data = (await res.json()) as {
+            success: boolean;
+            orders: EbayOrder[];
+            error?: string;
+          };
+          if (!data.success) throw new Error(`${store}: ${data.error ?? "Failed"}`);
+          return data.orders.map((o) => ({ ...o, _store: store }));
+        }),
+      );
+      setOrders(results.flat());
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to fetch orders");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (didFetch.current) return;
+    didFetch.current = true;
+    fetchOrders();
+  }, [fetchOrders]);
 
   return (
-    <List>
-      <Table {...tableProps} rowKey="id">
-        <Table.Column dataIndex="order_id" title="Order ID" />
-        <Table.Column dataIndex="buyer_username" title="Buyer" />
-        <Table.Column dataIndex="item_title" title="Item" />
-        <Table.Column
-          dataIndex="total_price"
-          title="Total"
-          render={(value: number) =>
-            value != null ? `$${value.toFixed(2)}` : "-"
-          }
-        />
-        <Table.Column
-          dataIndex="status"
-          title="Status"
-          render={(value: string) => <Tag>{value}</Tag>}
-        />
-        <Table.Column
-          dataIndex="created_at"
-          title="Created At"
-          render={(value: string) => <DateField value={value} />}
-        />
-        <Table.Column
-          title="Actions"
-          dataIndex="actions"
-          render={(_, record: BaseRecord) => (
-            <Space>
-              <EditButton hideText size="small" recordItemId={record.id} />
-              <ShowButton hideText size="small" recordItemId={record.id} />
-              <DeleteButton hideText size="small" recordItemId={record.id} />
-            </Space>
-          )}
-        />
-      </Table>
-    </List>
+    <div style={{ padding: 24 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>eBay 待发货订单</h3>
+          <Text type="secondary">{orders.length} orders pending shipment</Text>
+        </div>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={fetchOrders}
+          loading={loading}
+          type="primary"
+        >
+          Refresh
+        </Button>
+      </div>
+
+      {error && (
+        <div style={{ color: "#ff4d4f", marginBottom: 12 }}>{error}</div>
+      )}
+
+      <Table
+        dataSource={orders}
+        rowKey="orderId"
+        loading={loading}
+        pagination={{ pageSize: PAGE_SIZE, showTotal: (total) => `${total} orders` }}
+        size="small"
+        columns={[
+          {
+            title: "Order ID",
+            dataIndex: "orderId",
+            key: "orderId",
+            width: 200,
+          },
+          {
+            title: "Store",
+            dataIndex: "_store",
+            key: "_store",
+            width: 70,
+            render: (value: string) => <Tag>{value}</Tag>,
+          },
+          {
+            title: "Buyer",
+            dataIndex: "buyerUsername",
+            key: "buyerUsername",
+            width: 160,
+            render: (value: string | null) => value ?? "-",
+          },
+          {
+            title: "Total",
+            dataIndex: "totalAmount",
+            key: "totalAmount",
+            width: 100,
+            render: (value: number | null, record: EbayOrder & { _store: string }) =>
+              value != null
+                ? `${record.currency ?? "$"}${value.toFixed(2)}`
+                : "-",
+          },
+          {
+            title: "Status",
+            dataIndex: "orderFulfillmentStatus",
+            key: "orderFulfillmentStatus",
+            width: 130,
+            render: (value: string) => (
+              <Tag color={value === "NOT_STARTED" ? "orange" : "blue"}>
+                {value}
+              </Tag>
+            ),
+          },
+          {
+            title: "Created",
+            dataIndex: "creationDate",
+            key: "creationDate",
+            width: 180,
+            render: (value: string | null) =>
+              value ? new Date(value).toLocaleString() : "-",
+          },
+        ]}
+      />
+    </div>
   );
 }

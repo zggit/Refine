@@ -10,8 +10,10 @@ const { Text } = Typography;
 const STORES = ["AV", "ST"] as const;
 const PAGE_SIZE = 100;
 
+type OrderRow = EbayOrder & { _store: string };
+
 export default function EbayOrderList() {
-  const [orders, setOrders] = useState<EbayOrder[]>([]);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const didFetch = useRef(false);
@@ -106,7 +108,7 @@ export default function EbayOrderList() {
             dataIndex: "totalAmount",
             key: "totalAmount",
             width: 100,
-            render: (value: number | null, record: EbayOrder & { _store: string }) =>
+            render: (value: number | null, record: OrderRow) =>
               value != null
                 ? `${record.currency ?? "$"}${value.toFixed(2)}`
                 : "-",
